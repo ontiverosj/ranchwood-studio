@@ -99,7 +99,7 @@ function App() {
       if (m.type === "audio")
         return commit((q) => ({ ...q, audioTrack: { ...m, volume: 30 } }));
       try {
-        const { duration } = await api.probeMedia(m.path);
+        const duration = m.duration || (await api.probeMedia(m.path)).duration;
         if (!duration) throw new Error("No duration found");
         commit((q) => ({
           ...q,
@@ -150,6 +150,16 @@ function App() {
         setBusy(false);
         setProgress("");
       }
+    },
+    startDrag = (event, media) => {
+      event.dataTransfer.effectAllowed = "copy";
+      event.dataTransfer.setData("application/x-ranchwood-media", media.id);
+    },
+    receiveDrop = (event) => {
+      event.preventDefault();
+      const id = event.dataTransfer.getData("application/x-ranchwood-media");
+      const media = p.media.find((item) => item.id === id);
+      if (media) add(media);
     },
     patch = (x) =>
       commit((q) => ({
@@ -252,13 +262,15 @@ function App() {
           </button>
           <button className="agent-edit" onClick={agentEdit} disabled={busy || !p.media.some((m) => m.type === "video")}>
             <WandSparkles />
-            <span><b>Agent Edit</b><small>Remove silence and build timeline</small></span>
+            <span><b>Reel Agent</b><small>Cut silence and build my reel</small></span>
           </button>
           <div className="media-grid">
             {p.media.map((m) => (
               <button
                 className="media-card"
                 key={m.id}
+                draggable
+                onDragStart={(event) => startDrag(event, m)}
                 onClick={() => add(m)}
               >
                 {m.type === "video" ? (
@@ -284,7 +296,11 @@ function App() {
             </select>
             <span>Fit</span>
           </div>
-          <div className={`canvas ratio-${p.ratio.replace(":", "-")}`}>
+          <div
+            className={`canvas drop-target ratio-${p.ratio.replace(":", "-")}`}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={receiveDrop}
+          >
             {clip ? (
               <video
                 ref={video}
@@ -303,8 +319,8 @@ function App() {
               />
             ) : (
               <div className="empty">
-                <b>Your story starts here</b>
-                <span>Double-click a video</span>
+                <b>Drop a video here</b>
+                <span>Or import clips and click Reel Agent</span>
               </div>
             )}
             {clip && p.overlay.text && (
@@ -471,7 +487,11 @@ function App() {
         </div>
         <div className="track">
           <div className="track-label">VIDEO 1</div>
-          <div className="clips">
+          <div
+            className="clips timeline-drop"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={receiveDrop}
+          >
             {p.clips.map((c, i) => (
               <button
                 key={c.id}
