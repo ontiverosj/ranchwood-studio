@@ -35,6 +35,46 @@ ipcMain.handle('media:import', async () => {
   }));
 });
 
+function inspectMedia(filePath, detectSilence = false) {
+  return new Promise((resolve, reject) => {
+    const args = detectSilence
+      ? ['-hide_banner', '-i', filePath, '-af', 'silencedetect=noise=-35dB:d=0.55', '-f', 'null', '-']
+      : ['-hide_banner', '-i', filePath, '-f', 'null', '-'];
+    const proc = spawn(ffmpegPath, args, { windowsHide: true });
+    let output = '';
+    proc.stderr.on('data', chunk => { output += chunk; });
+    proc.on('error', reject);
+    proc.on('close', () => {
+      const match = output.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+      if (!match) return reject(new Error(`Could not read ${path.basename(filePath)}`));
+      const duration = (+match[1] * 3600) + (+match[2] * 60) + (+match[3]);
+      const silences = [];
+      const starts = [...output.matchAll(/silence_start:\s*([\d.]+)/g)].map(m => +m[1]);
+      const ends = [...output.matchAll(/silence_end:\s*([\d.]+)/g)].map(m => +m[1]);
+      starts.forEach((start, i) => silences.push({ start, end: ends[i] ?? duration }));
+      resolve({ duration, silences });
+    });
+  });
+}
+
+ipcMain.handle('media:probe', (_, filePath) => inspectMedia(filePath));
+
+ipcMain.handle('agent:auto-edit', async (_, items) => {
+  const clips = [];
+  for (const item of items.filter(x => x.type === 'video')) {
+    const { duration, silences } = await inspectMedia(item.path, true);
+    let cursor = 0;
+    for (const silence of silences) {
+      const end = Math.max(cursor, silence.start - 0.12);
+      if (end - cursor >= 0.45) clips.push({ item, start: cursor, end });
+      cursor = Math.min(duration, silence.end + 0.08);
+    }
+    if (duration - cursor >= 0.45) clips.push({ item, start: cursor, end: duration });
+    if (!silences.length) clips.push({ item, start: 0, end: duration });
+  }
+  return clips;
+});
+
 ipcMain.handle('project:save', async (_, project) => {
   const result = await dialog.showSaveDialog(win, { defaultPath: `${project.name || 'Untitled'}.rws`, filters: [{ name: 'Ranchwood Studio', extensions: ['rws'] }] });
   if (result.canceled) return null;
