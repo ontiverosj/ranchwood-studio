@@ -11,6 +11,9 @@ A focused desktop video editor for quickly creating Jake Eats and Greywolf socia
 - Visual clip thumbnails and timeline zoom
 - Background music with independent volume control
 - Per-clip volume, mute, audio fades, and fade transitions
+- Secure Claude API-key settings encrypted through macOS secure storage
+- Claude connection status and live connection test
+- Reel Agent workflow for automatic silence removal and timeline assembly
 - 9:16, 16:9, and 1:1 projects
 - Jake Eats and Greywolf title presets
 - Save and reopen `.rws` projects
@@ -21,6 +24,12 @@ A focused desktop video editor for quickly creating Jake Eats and Greywolf socia
 1. Install Node.js 20 or newer.
 2. Run `npm install`.
 3. Run `npm run dev`.
+
+## Connect Claude
+
+Open **AI Settings** in the application, paste your Anthropic API key, select
+**Save key**, and then select **Test connection**. The key is encrypted locally
+and is never stored in this repository.
 
 ## Build an installer
 
