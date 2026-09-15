@@ -92,8 +92,44 @@ function App() {
       }
     },
     imports = async () => {
-      const a = await api.importMedia();
-      setP((q) => ({ ...q, media: [...q.media, ...a] }));
+      const imported = await api.importMedia();
+      if (!imported.length) return;
+      setBusy(true);
+      setProgress("Adding videos to timeline");
+      const newClips = [];
+      const rejected = [];
+      for (const media of imported.filter((item) => item.type === "video")) {
+        try {
+          const duration = media.duration || (await api.probeMedia(media.path)).duration;
+          if (!duration) throw new Error("No duration found");
+          newClips.push({
+            ...media,
+            id: `${media.id}-import-${Date.now()}-${newClips.length}`,
+            duration,
+            trimStart: 0,
+            trimEnd: duration,
+            volume: 100,
+            muted: false,
+            fadeIn: 0,
+            fadeOut: 0,
+            transition: "none",
+          });
+        } catch (error) {
+          rejected.push(`${media.name}: ${error.message}`);
+        }
+      }
+      const firstAudio = imported.find((item) => item.type === "audio");
+      setP((q) => ({
+        ...q,
+        media: [...q.media, ...imported],
+        clips: [...q.clips, ...newClips],
+        audioTrack: q.audioTrack || (firstAudio ? { ...firstAudio, volume: 30 } : null),
+      }));
+      if (newClips.length) setSel(newClips[0].id);
+      setBusy(false);
+      setProgress("");
+      if (rejected.length) alert(`Some files could not be added:\n${rejected.join("\n")}`);
+      else if (newClips.length) alert(`${newClips.length} video${newClips.length === 1 ? "" : "s"} added to the timeline.`);
     },
     add = async (m) => {
       if (m.type === "audio")
@@ -220,7 +256,7 @@ function App() {
           <div className="mark">R</div>
           <div>
             <b>Ranchwood Studio</b>
-            <small>Phase 2 editor</small>
+            <small>Reel Agent editor</small>
           </div>
         </div>
         <input
@@ -257,8 +293,8 @@ function App() {
           </div>
           <button className="drop" onClick={imports}>
             <Upload />
-            <b>Import media</b>
-            <span>Video or background music</span>
+            <b>Import and add videos</b>
+            <span>Videos go directly onto the timeline</span>
           </button>
           <button className="agent-edit" onClick={agentEdit} disabled={busy || !p.media.some((m) => m.type === "video")}>
             <WandSparkles />
