@@ -1,8 +1,10 @@
-const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, safeStorage } = require('electron');
+const Store = require('electron-store');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const ffmpegPath = require('ffmpeg-static');
+const settingsStore = new Store({ name: 'ranchwood-settings' });
 
 let win;
 const isDev = !app.isPackaged;
@@ -20,6 +22,41 @@ function createWindow() {
 
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+
+function getClaudeKey() {
+  const encrypted = settingsStore.get('claudeApiKey');
+  if (!encrypted || !safeStorage.isEncryptionAvailable()) return '';
+  try { return safeStorage.decryptString(Buffer.from(encrypted, 'base64')); }
+  catch (_) { return ''; }
+}
+
+ipcMain.handle('claude:status', () => ({ connected: Boolean(getClaudeKey()) }));
+
+ipcMain.handle('claude:save-key', (_, apiKey) => {
+  const key = String(apiKey || '').trim();
+  if (!key) throw new Error('Enter an Anthropic API key.');
+  if (!safeStorage.isEncryptionAvailable()) throw new Error('Secure storage is unavailable on this Mac.');
+  settingsStore.set('claudeApiKey', safeStorage.encryptString(key).toString('base64'));
+  return { connected: true };
+});
+
+ipcMain.handle('claude:remove-key', () => {
+  settingsStore.delete('claudeApiKey');
+  return { connected: false };
+});
+
+ipcMain.handle('claude:test', async () => {
+  const apiKey = getClaudeKey();
+  if (!apiKey) throw new Error('Save your Anthropic API key first.');
+  const { default: Anthropic } = await import('@anthropic-ai/sdk');
+  const client = new Anthropic({ apiKey });
+  const response = await client.messages.create({
+    model: 'claude-sonnet-4-6', max_tokens: 12,
+    messages: [{ role: 'user', content: 'Reply with exactly: Connected' }]
+  });
+  const reply = response.content.find(block => block.type === 'text')?.text || 'Connected';
+  return { connected: true, reply };
+});
 
 ipcMain.handle('media:import', async () => {
   const result = await dialog.showOpenDialog(win, {
