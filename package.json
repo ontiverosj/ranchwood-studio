@@ -1,0 +1,35 @@
+{
+  "name": "ranchwood-studio",
+  "version": "0.1.0",
+  "description": "Fast social video editor for Jake Eats and Greywolf",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "build": "vite build",
+    "start": "electron .",
+    "dist": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron-store": "^8.2.0",
+    "ffmpeg-static": "^5.2.0",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^6.0.5"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.ranchwood.studio",
+    "productName": "Ranchwood Studio",
+    "files": ["dist/**/*", "electron/**/*", "package.json"],
+    "asarUnpack": ["node_modules/ffmpeg-static/**"],
+    "mac": { "category": "public.app-category.video" },
+    "win": { "target": "nsis" }
+  }
+}
