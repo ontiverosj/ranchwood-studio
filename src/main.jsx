@@ -19,12 +19,21 @@ import {
   ZoomIn,
   ZoomOut,
   WandSparkles,
+  Settings,
+  Eye,
+  EyeOff,
+  X,
+  CheckCircle2,
 } from "lucide-react";
 import "./styles.css";
 const api = window.studio || {
     importMedia: async () => [],
     probeMedia: async () => ({ duration: 0 }),
     autoEdit: async () => [],
+    claudeStatus: async () => ({ connected: false }),
+    saveClaudeKey: async () => ({ connected: false }),
+    removeClaudeKey: async () => ({ connected: false }),
+    testClaude: async () => ({ connected: false }),
     saveProject: async () => null,
     openProject: async () => null,
     exportVideo: async () => {
@@ -53,7 +62,13 @@ function App() {
     [progress, setProgress] = useState(""),
     [past, setPast] = useState([]),
     [next, setNext] = useState([]),
-    [zoom, setZoom] = useState(16);
+    [zoom, setZoom] = useState(16),
+    [settingsOpen, setSettingsOpen] = useState(false),
+    [claudeKey, setClaudeKey] = useState(""),
+    [showKey, setShowKey] = useState(false),
+    [claudeConnected, setClaudeConnected] = useState(false),
+    [testingClaude, setTestingClaude] = useState(false),
+    [claudeMessage, setClaudeMessage] = useState("");
   const video = useRef(),
     music = useRef(),
     clip = p.clips.find((x) => x.id === sel) || p.clips[0],
@@ -62,6 +77,9 @@ function App() {
       [p.clips],
     );
   useEffect(() => api.onExportProgress(setProgress), []);
+  useEffect(() => {
+    api.claudeStatus().then((status) => setClaudeConnected(status.connected));
+  }, []);
   useEffect(() => {
     if (clip && video.current) {
       video.current.currentTime = clip.trimStart;
@@ -232,6 +250,37 @@ function App() {
       if (x) setP({ version: 2, audioTrack: null, ...x });
     },
     save = () => api.saveProject(p),
+    saveClaude = async () => {
+      setClaudeMessage("");
+      try {
+        const status = await api.saveClaudeKey(claudeKey);
+        setClaudeConnected(status.connected);
+        setClaudeKey("");
+        setClaudeMessage("API key encrypted and saved on this Mac.");
+      } catch (error) {
+        setClaudeMessage(error.message);
+      }
+    },
+    testClaude = async () => {
+      setTestingClaude(true);
+      setClaudeMessage("Testing Claude connection…");
+      try {
+        const status = await api.testClaude();
+        setClaudeConnected(status.connected);
+        setClaudeMessage(`Claude replied: ${status.reply}`);
+      } catch (error) {
+        setClaudeConnected(false);
+        setClaudeMessage(`Connection failed: ${error.message}`);
+      } finally {
+        setTestingClaude(false);
+      }
+    },
+    removeClaude = async () => {
+      const status = await api.removeClaudeKey();
+      setClaudeConnected(status.connected);
+      setClaudeKey("");
+      setClaudeMessage("Claude API key removed from this Mac.");
+    },
     exportNow = async () => {
       setBusy(true);
       try {
@@ -265,6 +314,11 @@ function App() {
           onChange={(e) => setP({ ...p, name: e.target.value })}
         />
         <div className="top-actions">
+          <button className="ghost" onClick={() => setSettingsOpen(true)}>
+            <Settings />
+            AI Settings
+            <i className={`connection-dot ${claudeConnected ? "online" : ""}`} />
+          </button>
           <button className="ghost" onClick={load}>
             <FolderOpen />
             Open
@@ -591,6 +645,34 @@ function App() {
           </div>
         </div>
       </section>
+      {settingsOpen && (
+        <div className="settings-backdrop" onMouseDown={() => setSettingsOpen(false)}>
+          <section className="settings-modal" onMouseDown={(event) => event.stopPropagation()}>
+            <header>
+              <div>
+                <h2>AI Connections</h2>
+                <p>Connect Claude as Ranchwood Studio’s editing brain.</p>
+              </div>
+              <button className="icon" onClick={() => setSettingsOpen(false)}><X /></button>
+            </header>
+            <div className="provider-card">
+              <div className="provider-heading">
+                <div className="claude-mark">C</div>
+                <div><b>Anthropic Claude</b><small>{claudeConnected ? "Connected securely" : "Not connected"}</small></div>
+                {claudeConnected && <CheckCircle2 className="connected-icon" />}
+              </div>
+              <label>Anthropic API key<div className="key-field"><input type={showKey ? "text" : "password"} value={claudeKey} onChange={(event) => setClaudeKey(event.target.value)} placeholder={claudeConnected ? "Enter a new key to replace the saved key" : "sk-ant-…"} autoComplete="off"/><button onClick={() => setShowKey((value) => !value)}>{showKey ? <EyeOff /> : <Eye />}</button></div></label>
+              <p className="security-note">Encrypted with macOS secure storage. The key is never saved in GitHub or your project files.</p>
+              {claudeMessage && <div className={`claude-message ${claudeConnected ? "success" : ""}`}>{claudeMessage}</div>}
+              <div className="settings-actions">
+                <button className="primary" disabled={!claudeKey.trim()} onClick={saveClaude}>Save key</button>
+                <button disabled={!claudeConnected || testingClaude} onClick={testClaude}>{testingClaude ? "Testing…" : "Test connection"}</button>
+                {claudeConnected && <button className="danger" onClick={removeClaude}>Remove</button>}
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
