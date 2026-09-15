@@ -27,11 +27,17 @@ ipcMain.handle('media:import', async () => {
     filters: [{ name: 'Media', extensions: ['mp4','mov','m4v','webm','mp3','wav','m4a'] }]
   });
   if (result.canceled) return [];
-  return result.filePaths.map(filePath => ({
-    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    path: filePath,
-    name: path.basename(filePath),
-    type: /\.(mp3|wav|m4a)$/i.test(filePath) ? 'audio' : 'video'
+  return Promise.all(result.filePaths.map(async filePath => {
+    const type = /\.(mp3|wav|m4a)$/i.test(filePath) ? 'audio' : 'video';
+    let duration = 0;
+    try { duration = (await inspectMedia(filePath)).duration; } catch (_) {}
+    return {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      path: filePath,
+      name: path.basename(filePath),
+      type,
+      duration
+    };
   }));
 });
 
