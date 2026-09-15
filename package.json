@@ -10,6 +10,7 @@
     "dist": "npm run build && electron-builder"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.126.0",
     "@vitejs/plugin-react": "^4.3.4",
     "electron-store": "^8.2.0",
     "ffmpeg-static": "^5.2.0",
@@ -27,9 +28,19 @@
   "build": {
     "appId": "com.ranchwood.studio",
     "productName": "Ranchwood Studio",
-    "files": ["dist/**/*", "electron/**/*", "package.json"],
-    "asarUnpack": ["node_modules/ffmpeg-static/**"],
-    "mac": { "category": "public.app-category.video" },
-    "win": { "target": "nsis" }
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**"
+    ],
+    "mac": {
+      "category": "public.app-category.video"
+    },
+    "win": {
+      "target": "nsis"
+    }
   }
 }
