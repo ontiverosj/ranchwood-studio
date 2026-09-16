@@ -3,7 +3,12 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('studio', {
   importMedia: () => ipcRenderer.invoke('media:import'),
   probeMedia: (filePath) => ipcRenderer.invoke('media:probe', filePath),
-  autoEdit: (items, targetDuration) => ipcRenderer.invoke('agent:auto-edit', items, targetDuration),
+  autoEdit: (items, targetDuration, instruction) => ipcRenderer.invoke('agent:auto-edit', items, targetDuration, instruction),
+  onAgentProgress: (callback) => {
+    const listener = (_, value) => callback(value);
+    ipcRenderer.on('agent:progress', listener);
+    return () => ipcRenderer.removeListener('agent:progress', listener);
+  },
   claudeStatus: () => ipcRenderer.invoke('claude:status'),
   saveClaudeKey: (apiKey) => ipcRenderer.invoke('claude:save-key', apiKey),
   removeClaudeKey: () => ipcRenderer.invoke('claude:remove-key'),
