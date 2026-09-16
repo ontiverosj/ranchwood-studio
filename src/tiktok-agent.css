@@ -1,0 +1,1 @@
+.reel-length{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px;margin-top:12px}.reel-length label{font-size:11px;color:#9da4b8}.reel-length select{background:#1d2230;color:#fff;border:1px solid #3b4257;border-radius:7px;padding:7px 8px;font-size:11px}.agent-edit:disabled{filter:grayscale(.4)}
