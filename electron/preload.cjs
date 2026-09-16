@@ -3,7 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('studio', {
   importMedia: () => ipcRenderer.invoke('media:import'),
   probeMedia: (filePath) => ipcRenderer.invoke('media:probe', filePath),
-  autoEdit: (items) => ipcRenderer.invoke('agent:auto-edit', items),
+  autoEdit: (items, targetDuration) => ipcRenderer.invoke('agent:auto-edit', items, targetDuration),
   claudeStatus: () => ipcRenderer.invoke('claude:status'),
   saveClaudeKey: (apiKey) => ipcRenderer.invoke('claude:save-key', apiKey),
   removeClaudeKey: () => ipcRenderer.invoke('claude:remove-key'),
