@@ -102,9 +102,14 @@ function inspectMedia(filePath, detectSilence = false) {
 
 ipcMain.handle('media:probe', (_, filePath) => inspectMedia(filePath));
 
-ipcMain.handle('agent:auto-edit', async (_, items, targetDuration = 60) => {
+ipcMain.handle('agent:auto-edit', async (_, items, targetDuration = 60, instruction = '') => {
+  const progress = (step, detail, percent) => win?.webContents.send('agent:progress', { step, detail, percent });
   const candidates = [];
-  for (const item of items.filter(x => x.type === 'video')) {
+  const videos = items.filter(x => x.type === 'video');
+  progress('Starting Reel Agent', `Preparing ${videos.length} video${videos.length === 1 ? '' : 's'}`, 5);
+  for (let videoIndex = 0; videoIndex < videos.length; videoIndex++) {
+    const item = videos[videoIndex];
+    progress('Analyzing audio', item.name, 10 + Math.round((videoIndex / Math.max(1, videos.length)) * 55));
     const { duration, silences } = await inspectMedia(item.path, true);
     let cursor = 0;
     for (const silence of silences) {
@@ -115,8 +120,38 @@ ipcMain.handle('agent:auto-edit', async (_, items, targetDuration = 60) => {
     if (duration - cursor >= 0.45) candidates.push({ item, start: cursor, end: duration });
     if (!silences.length) candidates.push({ item, start: 0, end: duration });
   }
+  progress('Choosing the best cuts', `${candidates.length} usable sections found`, 72);
+  const limit = Math.max(5, Number(targetDuration) || 60);
+
+  if (getClaudeKey() && String(instruction || '').trim() && candidates.length) {
+    try {
+      progress('Claude is planning your reel', instruction, 80);
+      const { default: Anthropic } = await import('@anthropic-ai/sdk');
+      const client = new Anthropic({ apiKey: getClaudeKey() });
+      const compact = candidates.slice(0, 160).map((candidate, index) => ({
+        index,
+        file: candidate.item.name,
+        start: +candidate.start.toFixed(2),
+        end: +candidate.end.toFixed(2),
+        duration: +(candidate.end - candidate.start).toFixed(2)
+      }));
+      const response = await client.messages.create({
+        model: 'claude-sonnet-4-6', max_tokens: 1800,
+        system: 'You are the editing brain for a short-form vertical video editor. Return only valid JSON. Never include markdown.',
+        messages: [{ role: 'user', content: `Create an edit plan no longer than ${limit} seconds. User direction: ${instruction}\nCandidate spoken sections: ${JSON.stringify(compact)}\nReturn {"candidateIndexes":[number,...]} in the desired playback order. Use only supplied indexes and keep the total duration within the target.` }]
+      });
+      const text = response.content.find(block => block.type === 'text')?.text || '';
+      const plan = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));
+      const selected = [...new Set(plan.candidateIndexes || [])].map(index => candidates[index]).filter(Boolean);
+      if (selected.length) {
+        candidates.splice(0, candidates.length, ...selected);
+      }
+    } catch (error) {
+      progress('Claude planning was unavailable', `Using automatic cuts: ${error.message}`, 84);
+    }
+  }
   const clips = [];
-  let remaining = Math.max(5, Number(targetDuration) || 60);
+  let remaining = limit;
   for (const candidate of candidates) {
     if (remaining <= 0) break;
     const available = candidate.end - candidate.start;
@@ -124,6 +159,7 @@ ipcMain.handle('agent:auto-edit', async (_, items, targetDuration = 60) => {
     if (length >= 0.45) clips.push({ ...candidate, end: candidate.start + length });
     remaining -= length;
   }
+  progress('Reel ready', `${clips.length} clips · ${Math.round(limit - remaining)} seconds`, 100);
   return clips;
 });
 
