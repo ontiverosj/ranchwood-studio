@@ -82,7 +82,7 @@ function inspectMedia(filePath, detectSilence = false) {
   return new Promise((resolve, reject) => {
     const args = detectSilence
       ? ['-hide_banner', '-i', filePath, '-af', 'silencedetect=noise=-35dB:d=0.55', '-f', 'null', '-']
-      : ['-hide_banner', '-i', filePath, '-f', 'null', '-'];
+      : ['-hide_banner', '-i', filePath];
     const proc = spawn(ffmpegPath, args, { windowsHide: true });
     let output = '';
     proc.stderr.on('data', chunk => { output += chunk; });
@@ -102,18 +102,27 @@ function inspectMedia(filePath, detectSilence = false) {
 
 ipcMain.handle('media:probe', (_, filePath) => inspectMedia(filePath));
 
-ipcMain.handle('agent:auto-edit', async (_, items) => {
-  const clips = [];
+ipcMain.handle('agent:auto-edit', async (_, items, targetDuration = 60) => {
+  const candidates = [];
   for (const item of items.filter(x => x.type === 'video')) {
     const { duration, silences } = await inspectMedia(item.path, true);
     let cursor = 0;
     for (const silence of silences) {
       const end = Math.max(cursor, silence.start - 0.12);
-      if (end - cursor >= 0.45) clips.push({ item, start: cursor, end });
+      if (end - cursor >= 0.45) candidates.push({ item, start: cursor, end });
       cursor = Math.min(duration, silence.end + 0.08);
     }
-    if (duration - cursor >= 0.45) clips.push({ item, start: cursor, end: duration });
-    if (!silences.length) clips.push({ item, start: 0, end: duration });
+    if (duration - cursor >= 0.45) candidates.push({ item, start: cursor, end: duration });
+    if (!silences.length) candidates.push({ item, start: 0, end: duration });
+  }
+  const clips = [];
+  let remaining = Math.max(5, Number(targetDuration) || 60);
+  for (const candidate of candidates) {
+    if (remaining <= 0) break;
+    const available = candidate.end - candidate.start;
+    const length = Math.min(available, remaining);
+    if (length >= 0.45) clips.push({ ...candidate, end: candidate.start + length });
+    remaining -= length;
   }
   return clips;
 });
