@@ -30,6 +30,7 @@ const api = window.studio || {
     importMedia: async () => [],
     probeMedia: async () => ({ duration: 0 }),
     autoEdit: async () => [],
+    onAgentProgress: () => () => {},
     claudeStatus: async () => ({ connected: false }),
     saveClaudeKey: async () => ({ connected: false }),
     removeClaudeKey: async () => ({ connected: false }),
@@ -64,6 +65,8 @@ function App() {
     [next, setNext] = useState([]),
     [zoom, setZoom] = useState(16),
     [targetDuration, setTargetDuration] = useState(60),
+    [agentPrompt, setAgentPrompt] = useState("Create a fast-paced TikTok. Start with a strong hook, remove pauses and repetition, and end cleanly."),
+    [agentProgress, setAgentProgress] = useState(null),
     [settingsOpen, setSettingsOpen] = useState(false),
     [claudeKey, setClaudeKey] = useState(""),
     [showKey, setShowKey] = useState(false),
@@ -78,6 +81,7 @@ function App() {
       [p.clips],
     );
   useEffect(() => api.onExportProgress(setProgress), []);
+  useEffect(() => api.onAgentProgress(setAgentProgress), []);
   useEffect(() => {
     api.claudeStatus().then((status) => setClaudeConnected(status.connected));
   }, []);
@@ -183,8 +187,9 @@ function App() {
       if (!videos.length) return alert("Import at least one video first.");
       setBusy(true);
       setProgress("Agent is finding the best cuts");
+      setAgentProgress({ step: "Starting Reel Agent", detail: "Preparing your footage", percent: 2 });
       try {
-        const segments = await api.autoEdit(videos, targetDuration);
+        const segments = await api.autoEdit(videos, targetDuration, agentPrompt);
         const clips = segments.map(({ item, start, end }, index) => ({
           ...item,
           id: `${item.id}-agent-${Date.now()}-${index}`,
@@ -199,7 +204,9 @@ function App() {
         }));
         commit((q) => ({ ...q, clips }));
         setSel(clips[0]?.id);
+        setAgentProgress({ step: "Reel ready", detail: `${clips.length} clips added to the timeline`, percent: 100 });
       } catch (error) {
+        setAgentProgress({ step: "Reel Agent stopped", detail: error.message, percent: 0, error: true });
         alert(`Agent edit failed: ${error.message}`);
       } finally {
         setBusy(false);
@@ -359,10 +366,21 @@ function App() {
               <option value="90">90 seconds</option>
             </select>
           </div>
+          <label className="agent-prompt">
+            Tell Reel Agent what to create
+            <textarea value={agentPrompt} onChange={(event) => setAgentPrompt(event.target.value)} placeholder="Example: Make a 30-second Jake Eats review. Strong reaction first, product reveal near the end." />
+          </label>
           <button className="agent-edit" onClick={agentEdit} disabled={busy || !p.media.some((m) => m.type === "video")}>
             <WandSparkles />
-            <span><b>Reel Agent</b><small>Turn long footage into a {targetDuration}s TikTok</small></span>
+            <span><b>{p.clips.length ? "Re-edit with Reel Agent" : "Create with Reel Agent"}</b><small>Turn long footage into a {targetDuration}s TikTok</small></span>
           </button>
+          {agentProgress && (
+            <div className={`agent-progress ${agentProgress.error ? "error" : ""}`}>
+              <div><b>{agentProgress.step}</b><span>{agentProgress.percent || 0}%</span></div>
+              <small>{agentProgress.detail}</small>
+              <div className="progress-track"><i style={{ width: `${agentProgress.percent || 0}%` }} /></div>
+            </div>
+          )}
           <div className="media-grid">
             {p.media.map((m) => (
               <button
