@@ -63,6 +63,7 @@ function App() {
     [past, setPast] = useState([]),
     [next, setNext] = useState([]),
     [zoom, setZoom] = useState(16),
+    [targetDuration, setTargetDuration] = useState(60),
     [settingsOpen, setSettingsOpen] = useState(false),
     [claudeKey, setClaudeKey] = useState(""),
     [showKey, setShowKey] = useState(false),
@@ -183,7 +184,7 @@ function App() {
       setBusy(true);
       setProgress("Agent is finding the best cuts");
       try {
-        const segments = await api.autoEdit(videos);
+        const segments = await api.autoEdit(videos, targetDuration);
         const clips = segments.map(({ item, start, end }, index) => ({
           ...item,
           id: `${item.id}-agent-${Date.now()}-${index}`,
@@ -350,9 +351,17 @@ function App() {
             <b>Import and add videos</b>
             <span>Videos go directly onto the timeline</span>
           </button>
+          <div className="reel-length">
+            <label htmlFor="reel-duration">TikTok length</label>
+            <select id="reel-duration" value={targetDuration} onChange={(event) => setTargetDuration(Number(event.target.value))}>
+              <option value="30">30 seconds</option>
+              <option value="60">60 seconds</option>
+              <option value="90">90 seconds</option>
+            </select>
+          </div>
           <button className="agent-edit" onClick={agentEdit} disabled={busy || !p.media.some((m) => m.type === "video")}>
             <WandSparkles />
-            <span><b>Reel Agent</b><small>Cut silence and build my reel</small></span>
+            <span><b>Reel Agent</b><small>Turn long footage into a {targetDuration}s TikTok</small></span>
           </button>
           <div className="media-grid">
             {p.media.map((m) => (
